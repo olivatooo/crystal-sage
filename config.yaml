@@ -1,0 +1,23 @@
+global:
+  # Wheather or not to print in terminal
+  debug: true
+  port: 8080
+
+crystals:
+  - name: "unique-name"
+    shards:
+      - alias: "Just a cool name used for logging"
+        type: "discord"
+        envVar: false
+        webhook: "https://discord.com/api/webhooks/..."
+
+      - alias: "Destroyer Of Worlds"
+        type: "discord"
+        envVar: true
+        webhook: "MAH_TEST_DISCORD_WEBHOOK"
+
+      - alias: "Just a cool name used for logging"
+        type: "slack"
+        envVar: false
+        webhook: "slack_webhook_url"
+
