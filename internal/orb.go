@@ -2,6 +2,7 @@ package internal
 
 import (
 	"crystalsage/internal/shards"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -127,6 +128,7 @@ func (orb *Orb) Load(orbConfig OrbConfig) {
 				EnvVar:  shardCfg.EnvVar,
 				URL:     shardCfg.Webhook,
 				Alias:   shardCfg.Alias,
+				Type:    shardCfg.Type,
 				Debug:   orbConfig.Global.Debug,
 				Variant: variant,
 				AuthKey: shardCfg.Auth,
@@ -180,8 +182,94 @@ func (orb *Orb) Load(orbConfig OrbConfig) {
 
 func (orb *Orb) Register(mux *http.ServeMux) {
 	fmt.Println("[Orb][Registering]")
+	// Register root endpoints
+	mux.HandleFunc("/", RootHandler)
 	for _, crystal := range orb.Crystals {
 		crystal.Register(mux)
 	}
 	fmt.Println("[Orb][Registered]")
+}
+
+// RootHandler handles requests to the root path
+func RootHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodHead {
+		// Health check - just return 200
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		// Return all available log services
+		services := make([]ServiceInfo, 0, len(GlobalOrb.Crystals))
+		for name, crystal := range GlobalOrb.Crystals {
+			shardTypes := make(map[string]int)
+			hasAuth := crystal.Auth != nil
+
+			// Check if any shard requires auth
+			if !hasAuth && GlobalOrb.Auth != nil {
+				for _, shard := range crystal.Shards {
+					if shard.AuthKey != "" {
+						if _, ok := GlobalOrb.Auth.Shards[shard.AuthKey]; ok {
+							hasAuth = true
+							break
+						}
+					}
+				}
+			}
+
+			// Also check crystal-level auth
+			if !hasAuth {
+				hasAuth = GetAuthForCrystal(name, GlobalOrb) != nil
+			}
+
+			// Count shard types
+			for _, shard := range crystal.Shards {
+				shardType := shard.Type
+				if shardType == "" {
+					shardType = "unknown"
+				}
+				shardTypes[shardType]++
+			}
+
+			service := ServiceInfo{
+				Name:         name,
+				Shards:       len(crystal.Shards),
+				ShardTypes:   shardTypes,
+				RequiresAuth: hasAuth,
+				Endpoints: []string{
+					fmt.Sprintf("/%s", name),
+					fmt.Sprintf("/%s/variant", name),
+				},
+			}
+			services = append(services, service)
+		}
+
+		response := ServicesResponse{
+			Services: services,
+			Count:    len(services),
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Method not allowed
+	w.WriteHeader(http.StatusMethodNotAllowed)
+}
+
+// ServiceInfo represents information about a log service (crystal)
+type ServiceInfo struct {
+	Name         string         `json:"name"`
+	Shards       int            `json:"shards"`
+	ShardTypes   map[string]int `json:"shard_types"`
+	RequiresAuth bool           `json:"requires_auth"`
+	Endpoints    []string       `json:"endpoints"`
+}
+
+// ServicesResponse represents the response containing all services
+type ServicesResponse struct {
+	Services []ServiceInfo `json:"services"`
+	Count    int           `json:"count"`
 }

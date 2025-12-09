@@ -10,6 +10,7 @@ type Shard struct {
 	URL        string
 	Name       string
 	Alias      string
+	Type       string // Shard type: discord, slack, telegram
 	Debug      bool
 	Log        func(string, uint8)
 	EnvVar     bool
