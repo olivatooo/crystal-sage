@@ -1,87 +1,25 @@
 global:
-  # Wheather or not to print in terminal
-  debug: true
-  port: 8080
-
-# Variant configurations - reusable message templates
-variants:
-  alert-variant:
-    title: "ALERT TITLE"
-    description: "ALERT DESCRIPTION"
-    color: 15158332  # Red in RGB
-    author: "Master Server"
-    username: "Alert Bot"
-    content: ""
-    fields: []
-  
-  info-variant:
-    title: "INFO TITLE"
-    description: "INFO DESCRIPTION"
-    color: 3447003  # Blue in RGB
-    author: "Master Server"
-    username: "Info Bot"
-    content: ""
-    fields: []
-
-# Authentication configurations - optional API key authentication
-auth:
-  # Shard-level authentication (referenced by shard alias)
-  shards:
-    secure-shard-key:
-      key: "my-secure-shard-api-key-123"
-  
-  # Crystal-level authentication (applies to all shards in a crystal)
-  crystals:
-    unique-name:
-      key: "my-crystal-api-key-456"
-  
-  # Name-level authentication (same as crystals, alternative naming)
-  names:
-    production-logs:
-      key: "production-api-key-789"
+  debug: true  # Whether to print debug logs in terminal
+  port: 8080   # Port to listen on
 
 crystals:
-  - name: "unique-name"
+  - name: "testing"
     shards:
-      - alias: "Just a cool name used for logging"
+      # Discord example
+      - alias: "Discord Notifications"
         type: "discord"
         envVar: false
         webhook: "https://discord.com/api/webhooks/..."
 
-      - alias: "Destroyer Of Worlds"
-        type: "discord"
-        envVar: true
-        webhook: "MAH_TEST_DISCORD_WEBHOOK"
-
-      - alias: "Just a cool name used for logging"
-        type: "slack"
-        envVar: false
-        webhook: "slack_webhook_url"
-      
-      # Example of variant usage
-      - alias: "Discord with Variant"
-        type: "discord"
-        variant: "alert-variant"
-        envVar: false
-        webhook: "https://discord.com/api/webhooks/..."
-      
-      - alias: "Slack with Variant"
-        type: "slack"
-        variant: "info-variant"
-        envVar: false
-        webhook: "slack_webhook_url"
-      
-      - alias: "Telegram with Variant"
+      # Telegram example
+      - alias: "Telegram Alerts"
         type: "telegram"
-        variant: "alert-variant"
         envVar: false
         webhook: "https://api.telegram.org/bot<TOKEN>/sendMessage"
         chatId: "123456789"
-      
-      # Example of shard-level authentication
-      - alias: "Secure Discord Shard"
-        type: "discord"
-        auth: "secure-shard-key"  # References auth.shards.secure-shard-key
-        envVar: false
-        webhook: "https://discord.com/api/webhooks/..."
 
+      # Slack example
+      - alias: "Slack Logs"
+        type: "slack"
+        envVar: true
+        webhook: "SLACK_WEBHOOK_ENV_VAR"

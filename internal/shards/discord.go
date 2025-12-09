@@ -31,29 +31,31 @@ type Discord struct {
 }
 
 func (discord *Discord) Log(content string, level uint8) {
+	fmt.Printf("[Discord][Log][Start] Shard: %s, Level: %d, Content length: %d\n", discord.Alias, level, len(content))
 	if discord.URL == "" {
+		fmt.Printf("[Discord][Log][Error] No URL configured for shard '%s', logging to console only\n", discord.Alias)
 		fmt.Println("[Discord][Log]", "[", discord.Alias, "]", "[", level, "]", content)
 		return
-	}
-	if discord.Debug {
-		fmt.Println("[Discord][Log]", "[", discord.Alias, "]", "[", level, "]", content)
 	}
 	method := "POST"
 	payload := strings.NewReader(fmt.Sprintf("{\"content\": \"%s\"}", content))
+	fmt.Printf("[Discord][Log] Creating HTTP request to Discord webhook\n")
 	client := &http.Client{}
 	req, err := http.NewRequest(method, discord.URL, payload)
 	if err != nil {
+		fmt.Printf("[Discord][Log][Error] Failed to create request: %v\n", err)
 		return
 	}
 	req.Header.Add("Content-Type", "application/json")
+	fmt.Printf("[Discord][Log] Sending HTTP request to Discord\n")
 	res, err := client.Do(req)
 	if err != nil {
+		fmt.Printf("[Discord][Log][Error] Failed to send request: %v\n", err)
 		return
 	}
-	if discord.Debug {
-		fmt.Println("[Discord][Log]", "[", discord.Alias, "]", "[", level, "]", res.Status)
-	}
+	fmt.Printf("[Discord][Log] Received response: Status=%s, StatusCode=%d\n", res.Status, res.StatusCode)
 	defer res.Body.Close()
+	fmt.Printf("[Discord][Log][Complete] Successfully sent message to Discord shard '%s'\n", discord.Alias)
 }
 
 func (discord *Discord) RawLog(content string) {
@@ -80,20 +82,14 @@ func (discord *Discord) VariantLog(title string, description string, color int) 
 		return
 	}
 	if discord.Variant == nil {
-		if discord.Debug {
-			fmt.Printf("[Discord][VariantLog] No variant config for shard: %s\n", discord.Alias)
-		}
+		fmt.Printf("[Discord][VariantLog][Error] No variant config for shard: %s\n", discord.Alias)
 		return
 	}
-	if discord.Debug {
-		fmt.Println("[Discord][VariantLog]", "[", discord.Alias, "]", title, description)
-	}
+	fmt.Printf("[Discord][VariantLog][Start] Shard: %s, Title: %s, Description: %s, Color: %d\n", discord.Alias, title, description, color)
 
 	payloadBytes, err := BuildDiscordVariantMessage(discord.Variant, title, description, color)
 	if err != nil {
-		if discord.Debug {
-			fmt.Printf("[Discord][VariantLog] Error building message: %v\n", err)
-		}
+		fmt.Printf("[Discord][VariantLog][Error] Error building message: %v\n", err)
 		return
 	}
 
@@ -108,8 +104,7 @@ func (discord *Discord) VariantLog(title string, description string, color int) 
 	if err != nil {
 		return
 	}
-	if discord.Debug {
-		fmt.Println("[Discord][VariantLog]", "[", discord.Alias, "]", res.Status)
-	}
+	fmt.Printf("[Discord][VariantLog] Received response: Status=%s, StatusCode=%d\n", res.Status, res.StatusCode)
 	defer res.Body.Close()
+	fmt.Printf("[Discord][VariantLog][Complete] Successfully sent variant message to Discord shard '%s'\n", discord.Alias)
 }

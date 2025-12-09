@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"bytes"
 	"io"
 	"log"
 	"net/http"
@@ -26,8 +27,9 @@ func Logging(next http.Handler) http.Handler {
 		if err != nil {
 			log.Printf("Error reading request body: %v", err)
 		}
-		r.Body = io.NopCloser(io.NopCloser(r.Body).(io.ReadCloser))
-		next.ServeHTTP(w, r)
+		// Restore the body so it can be read again by ParseForm
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		next.ServeHTTP(wrappedWriter, r)
 		log.Printf(
 			"Method: %s, URL: %s, ClientIP: %s, User-Agent: %s, Status: %d, Latency: %v, Request Body: %s",
 			r.Method,
