@@ -32,7 +32,7 @@ type Discord struct {
 
 func (discord *Discord) Log(content string, level uint8) {
 	if discord.URL == "" {
-		fmt.Errorf("[Discord][Log]", "[", discord.Alias, "]", "[", level, "]", content)
+		fmt.Println("[Discord][Log]", "[", discord.Alias, "]", "[", level, "]", content)
 		return
 	}
 	if discord.Debug {

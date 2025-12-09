@@ -4,6 +4,8 @@ import (
 	"crystalsage/internal/shards"
 	"fmt"
 	"net/http"
+
+	"github.com/gobuffalo/envy"
 )
 
 type OrbConfig struct {
@@ -20,6 +22,7 @@ type OrbConfig struct {
 			Type    string `yaml:"type"`
 			EnvVar  bool   `yaml:"envVar"`
 			Webhook string `yaml:"webhook"`
+			ChatID  string `yaml:"chatId"`
 		} `yaml:"shards"`
 	} `yaml:"crystals"`
 }
@@ -66,6 +69,21 @@ func (orb *Orb) Load(orbConfig OrbConfig) {
 				}
 				shard.Log = discord.Log
 				shard.RawLog = discord.RawLog
+			case "telegram":
+				chatID := shardCfg.ChatID
+				if shardCfg.EnvVar && chatID != "" {
+					var err error
+					chatID, err = envy.MustGet(chatID)
+					if err != nil {
+						fmt.Printf("[Orb][Warning] Failed to load chat_id from env for Telegram shard: %s\n", shardCfg.Alias)
+					}
+				}
+				telegram := shards.Telegram{
+					Shard:  &shard,
+					ChatID: chatID,
+				}
+				shard.Log = telegram.Log
+				shard.RawLog = telegram.RawLog
 			default:
 				fmt.Printf("[Orb][Warning] Unknown shard type: %s\n", shardCfg.Type)
 				continue
