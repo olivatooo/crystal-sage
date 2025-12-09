@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 type Crystal struct {
-	Name   string         `yaml:"name"`
-	Shards []shards.Shard `yaml:"shards"`
-	Beam   chan string
-	Auth   *AuthConfig
+	Name     string                           `yaml:"name"`
+	Shards   []shards.Shard                   `yaml:"shards"`
+	Variants map[string]*shards.VariantConfig `yaml:"variants"`
+	Beam     chan string
+	Auth     *AuthConfig
 }
 
 func (crystal *Crystal) Log(content string, level uint8) {
@@ -34,22 +36,21 @@ func (crystal *Crystal) AppendShard(shard shards.Shard) {
 }
 
 func (crystal *Crystal) Register(mux *http.ServeMux) {
+	// Always register base endpoint
 	mux.HandleFunc("/"+crystal.Name, Disperse)
+	fmt.Printf("[Crystal][Register] Registered base endpoint: /%s\n", crystal.Name)
 
-	// Only register variant endpoint if at least one shard has a variant configured
-	hasVariant := false
-	for _, shard := range crystal.Shards {
-		if shard.Variant != nil {
-			hasVariant = true
-			fmt.Printf("[Crystal][Register] Crystal '%s' has variant support, registering /%s/variant endpoint\n", crystal.Name, crystal.Name)
-			break
+	// Register variant endpoints by name
+	if len(crystal.Variants) > 0 {
+		for variantName := range crystal.Variants {
+			endpoint := "/" + crystal.Name + "/" + variantName
+			mux.HandleFunc(endpoint, func(w http.ResponseWriter, r *http.Request) {
+				DisperseVariantByName(w, r, variantName)
+			})
+			fmt.Printf("[Crystal][Register] Registered variant endpoint: %s\n", endpoint)
 		}
-	}
-
-	if hasVariant {
-		mux.HandleFunc("/"+crystal.Name+"/variant", DisperseVariant)
 	} else {
-		fmt.Printf("[Crystal][Register] Crystal '%s' has no variants configured, skipping /%s/variant endpoint\n", crystal.Name, crystal.Name)
+		fmt.Printf("[Crystal][Register] Crystal '%s' has no variants configured\n", crystal.Name)
 	}
 }
 
@@ -165,41 +166,56 @@ func Disperse(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[Disperse][Complete] Request processed successfully\n")
 }
 
-func DisperseVariant(w http.ResponseWriter, r *http.Request) {
-	// Extract crystal name from path (remove /variant suffix)
-	path := r.URL.Path[1:]
-	crystalName := path[:len(path)-len("/variant")]
-	fmt.Printf("[DisperseVariant][Start] Processing variant request for crystal: %s, Method: %s, Path: %s\n", crystalName, r.Method, r.URL.Path)
+func DisperseVariantByName(w http.ResponseWriter, r *http.Request, variantName string) {
+	// Extract crystal name from path
+	// Path format: /crystal-name/variant-name
+	path := r.URL.Path[1:] // Remove leading /
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 {
+		fmt.Printf("[DisperseVariantByName][Error] Invalid path format: %s\n", r.URL.Path)
+		http.Error(w, "Invalid path format", http.StatusBadRequest)
+		return
+	}
+	crystalName := parts[0]
+	fmt.Printf("[DisperseVariantByName][Start] Processing variant request for crystal: %s, variant: %s, Method: %s, Path: %s\n", crystalName, variantName, r.Method, r.URL.Path)
 
 	crystal, exists := GlobalOrb.Crystals[crystalName]
 	if !exists {
-		fmt.Printf("[DisperseVariant][Error] Crystal '%s' not found\n", crystalName)
+		fmt.Printf("[DisperseVariantByName][Error] Crystal '%s' not found\n", crystalName)
 		http.Error(w, fmt.Sprintf("Crystal '%s' not found", crystalName), http.StatusNotFound)
 		return
 	}
-	fmt.Printf("[DisperseVariant][Crystal] Found crystal '%s' with %d shards\n", crystalName, len(crystal.Shards))
+
+	// Check if variant exists
+	variant, variantExists := crystal.Variants[variantName]
+	if !variantExists {
+		fmt.Printf("[DisperseVariantByName][Error] Variant '%s' not found for crystal '%s'\n", variantName, crystalName)
+		http.Error(w, fmt.Sprintf("Variant '%s' not found for crystal '%s'", variantName, crystalName), http.StatusNotFound)
+		return
+	}
+	fmt.Printf("[DisperseVariantByName][Crystal] Found crystal '%s' with %d shards, variant '%s' found\n", crystalName, len(crystal.Shards), variantName)
 
 	// Check authentication - priority: crystal-level > orb-level crystal > orb-level name
-	fmt.Printf("[DisperseVariant][Auth] Checking authentication for crystal '%s'\n", crystalName)
+	fmt.Printf("[DisperseVariantByName][Auth] Checking authentication for crystal '%s'\n", crystalName)
 	var auth *AuthConfig
 	if crystal.Auth != nil {
 		auth = crystal.Auth
-		fmt.Printf("[DisperseVariant][Auth] Using crystal-level authentication\n")
+		fmt.Printf("[DisperseVariantByName][Auth] Using crystal-level authentication\n")
 	} else {
 		auth = GetAuthForCrystal(crystalName, GlobalOrb)
 		if auth != nil {
-			fmt.Printf("[DisperseVariant][Auth] Using orb-level authentication\n")
+			fmt.Printf("[DisperseVariantByName][Auth] Using orb-level authentication\n")
 		}
 	}
 
 	// If no crystal-level auth, check if any shard requires auth
 	if auth == nil {
-		fmt.Printf("[DisperseVariant][Auth] Checking shard-level authentication\n")
+		fmt.Printf("[DisperseVariantByName][Auth] Checking shard-level authentication\n")
 		for _, shard := range crystal.Shards {
 			if shard.AuthKey != "" && GlobalOrb.Auth != nil {
 				if shardAuth, ok := GlobalOrb.Auth.Shards[shard.AuthKey]; ok {
 					auth = &shardAuth
-					fmt.Printf("[DisperseVariant][Auth] Found shard-level auth for shard '%s'\n", shard.Alias)
+					fmt.Printf("[DisperseVariantByName][Auth] Found shard-level auth for shard '%s'\n", shard.Alias)
 					break // Use first shard auth found
 				}
 			}
@@ -207,33 +223,33 @@ func DisperseVariant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if auth != nil {
-		fmt.Printf("[DisperseVariant][Auth] Authentication required, validating...\n")
+		fmt.Printf("[DisperseVariantByName][Auth] Authentication required, validating...\n")
 		if !CheckAuth(w, r, auth) {
-			fmt.Printf("[DisperseVariant][Auth] Authentication failed\n")
+			fmt.Printf("[DisperseVariantByName][Auth] Authentication failed\n")
 			return
 		}
-		fmt.Printf("[DisperseVariant][Auth] Authentication successful\n")
+		fmt.Printf("[DisperseVariantByName][Auth] Authentication successful\n")
 	} else {
-		fmt.Printf("[DisperseVariant][Auth] No authentication required\n")
+		fmt.Printf("[DisperseVariantByName][Auth] No authentication required\n")
 	}
 
-	fmt.Printf("[DisperseVariant][Parse] Starting parameter extraction\n")
+	fmt.Printf("[DisperseVariantByName][Parse] Starting parameter extraction\n")
 	err := r.ParseForm()
 	if err != nil {
-		fmt.Printf("[DisperseVariant][Parse] Error parsing form: %v\n", err)
+		fmt.Printf("[DisperseVariantByName][Parse] Error parsing form: %v\n", err)
 		crystal.Log("Unable to parse form", 0)
 		return
 	}
-	fmt.Printf("[DisperseVariant][Parse] Form parsed successfully\n")
+	fmt.Printf("[DisperseVariantByName][Parse] Form parsed successfully\n")
 
 	// Get parameters from form or query
-	fmt.Printf("[DisperseVariant][Parse] Extracting title, description, and color\n")
+	fmt.Printf("[DisperseVariantByName][Parse] Extracting title, description, and color\n")
 	title := r.FormValue("title")
 	if title == "" {
 		title = r.URL.Query().Get("title")
 	}
 	if title != "" {
-		fmt.Printf("[DisperseVariant][Parse] Title: %s\n", title)
+		fmt.Printf("[DisperseVariantByName][Parse] Title: %s\n", title)
 	}
 
 	description := r.FormValue("description")
@@ -241,7 +257,7 @@ func DisperseVariant(w http.ResponseWriter, r *http.Request) {
 		description = r.URL.Query().Get("description")
 	}
 	if description != "" {
-		fmt.Printf("[DisperseVariant][Parse] Description: %s\n", description)
+		fmt.Printf("[DisperseVariantByName][Parse] Description: %s\n", description)
 	}
 
 	colorStr := r.FormValue("color")
@@ -249,33 +265,33 @@ func DisperseVariant(w http.ResponseWriter, r *http.Request) {
 		colorStr = r.URL.Query().Get("color")
 	}
 	if colorStr != "" {
-		fmt.Printf("[DisperseVariant][Parse] Color: %s\n", colorStr)
+		fmt.Printf("[DisperseVariantByName][Parse] Color: %s\n", colorStr)
 	}
 
 	// Default color if not provided
 	color := 0
 	if colorStr != "" {
 		fmt.Sscanf(colorStr, "%d", &color)
-		fmt.Printf("[DisperseVariant][Parse] Parsed color as integer: %d\n", color)
+		fmt.Printf("[DisperseVariantByName][Parse] Parsed color as integer: %d\n", color)
 	}
 
 	if title == "" && description == "" {
-		fmt.Printf("[DisperseVariant][Error] Both title and description are empty\n")
+		fmt.Printf("[DisperseVariantByName][Error] Both title and description are empty\n")
 		crystal.Log("Unable to get title or description", 0)
 		return
 	}
 
-	// Send variant log to all shards that support it
-	fmt.Printf("[DisperseVariant][Send] Sending variant log to shards (title: %s, description: %s, color: %d)\n", title, description, color)
+	// Send variant log to all shards using the variant config
+	fmt.Printf("[DisperseVariantByName][Send] Sending variant log to shards (variant: %s, title: %s, description: %s, color: %d)\n", variantName, title, description, color)
 	shardCount := 0
 	for _, shard := range crystal.Shards {
 		if shard.VariantLog != nil {
-			fmt.Printf("[DisperseVariant][Send] Sending to shard '%s' (type: %s)\n", shard.Alias, shard.Type)
-			shard.VariantLog(title, description, color)
+			fmt.Printf("[DisperseVariantByName][Send] Sending to shard '%s' (type: %s) with variant '%s'\n", shard.Alias, shard.Type, variantName)
+			shard.VariantLog(variant, title, description, color)
 			shardCount++
 		} else {
-			fmt.Printf("[DisperseVariant][Send] Skipping shard '%s' (no VariantLog function)\n", shard.Alias)
+			fmt.Printf("[DisperseVariantByName][Send] Skipping shard '%s' (no VariantLog function)\n", shard.Alias)
 		}
 	}
-	fmt.Printf("[DisperseVariant][Complete] Sent variant log to %d shards\n", shardCount)
+	fmt.Printf("[DisperseVariantByName][Complete] Sent variant log to %d shards\n", shardCount)
 }

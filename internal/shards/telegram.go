@@ -97,20 +97,20 @@ func (telegram *Telegram) RawLog(content string) {
 	defer res.Body.Close()
 }
 
-func (telegram *Telegram) VariantLog(title string, description string, color int) {
+func (telegram *Telegram) VariantLog(variant *VariantConfig, title string, description string, color int) {
 	if telegram.URL == "" {
 		return
 	}
 	if telegram.ChatID == "" {
 		return
 	}
-	if telegram.Variant == nil {
-		fmt.Printf("[Telegram][VariantLog][Error] No variant config for shard: %s\n", telegram.Alias)
+	if variant == nil {
+		fmt.Printf("[Telegram][VariantLog][Error] No variant config provided for shard: %s\n", telegram.Alias)
 		return
 	}
 	fmt.Printf("[Telegram][VariantLog][Start] Shard: %s, Title: %s, Description: %s, Color: %d\n", telegram.Alias, title, description, color)
 
-	payloadBytes, err := BuildTelegramVariantMessage(telegram.Variant, title, description)
+	payloadBytes, err := BuildTelegramVariantMessage(variant, title, description)
 	if err != nil {
 		fmt.Printf("[Telegram][VariantLog][Error] Error building message: %v\n", err)
 		return

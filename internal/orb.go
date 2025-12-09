@@ -21,13 +21,13 @@ type OrbConfig struct {
 		Names    map[string]AuthConfig `yaml:"names"`
 	} `yaml:"auth"`
 	Crystals []struct {
-		Name   string `yaml:"name"`
-		Shards []struct {
+		Name     string   `yaml:"name"`
+		Variants []string `yaml:"variants"`
+		Shards   []struct {
 			Name    string `yaml:"name"`
 			Crystal string `yaml:"crystal"`
 			Alias   string `yaml:"alias"`
 			Type    string `yaml:"type"`
-			Variant string `yaml:"variant"`
 			Auth    string `yaml:"auth"`
 			EnvVar  bool   `yaml:"envVar"`
 			Webhook string `yaml:"webhook"`
@@ -81,10 +81,24 @@ func (orb *Orb) Load(orbConfig OrbConfig) {
 	}
 	for _, crystalCfg := range orbConfig.Crystals {
 		crystal := Crystal{
-			Name:   crystalCfg.Name,
-			Shards: make([]shards.Shard, 0, len(crystalCfg.Shards)),
+			Name:     crystalCfg.Name,
+			Shards:   make([]shards.Shard, 0, len(crystalCfg.Shards)),
+			Variants: make(map[string]*shards.VariantConfig),
 		}
 		fmt.Println("[Orb][Crystal][Name]", crystalCfg.Name)
+
+		// Load variants for this crystal
+		if len(crystalCfg.Variants) > 0 && orbConfig.Variants != nil {
+			fmt.Printf("[Orb][Crystal][Variants] Loading %d variants for crystal '%s'\n", len(crystalCfg.Variants), crystalCfg.Name)
+			for _, variantName := range crystalCfg.Variants {
+				if variant, ok := orbConfig.Variants[variantName]; ok {
+					crystal.Variants[variantName] = &variant
+					fmt.Printf("[Orb][Crystal][Variants] Loaded variant '%s' for crystal '%s'\n", variantName, crystalCfg.Name)
+				} else {
+					fmt.Printf("[Orb][Warning] Variant '%s' not found in variants config for crystal '%s'\n", variantName, crystalCfg.Name)
+				}
+			}
+		}
 
 		// Load crystal-level authentication
 		if orbConfig.Auth.Crystals != nil {
@@ -104,17 +118,6 @@ func (orb *Orb) Load(orbConfig OrbConfig) {
 			fmt.Println("[Orb][Shard][Name]", shardCfg.Name)
 			var shard shards.Shard
 
-			// Load variant config if specified
-			var variant *shards.VariantConfig
-			if shardCfg.Variant != "" && orbConfig.Variants != nil {
-				if v, ok := orbConfig.Variants[shardCfg.Variant]; ok {
-					variant = &v
-					fmt.Printf("[Orb][Shard][Variant] %s -> %s\n", shardCfg.Alias, shardCfg.Variant)
-				} else {
-					fmt.Printf("[Orb][Warning] Variant '%s' not found for shard: %s\n", shardCfg.Variant, shardCfg.Alias)
-				}
-			}
-
 			// Load shard-level authentication if specified
 			if shardCfg.Auth != "" && orbConfig.Auth.Shards != nil {
 				if _, ok := orbConfig.Auth.Shards[shardCfg.Auth]; ok {
@@ -130,7 +133,7 @@ func (orb *Orb) Load(orbConfig OrbConfig) {
 				Alias:   shardCfg.Alias,
 				Type:    shardCfg.Type,
 				Debug:   orbConfig.Global.Debug,
-				Variant: variant,
+				Variant: nil, // Variants are now at crystal level
 				AuthKey: shardCfg.Auth,
 			}
 			shard.Load()
@@ -139,7 +142,8 @@ func (orb *Orb) Load(orbConfig OrbConfig) {
 				slack := shards.Slack{Shard: &shard}
 				shard.Log = slack.Log
 				shard.RawLog = slack.RawLog
-				if variant != nil {
+				// Always enable VariantLog if crystal has variants
+				if len(crystal.Variants) > 0 {
 					shard.VariantLog = slack.VariantLog
 				}
 			case "discord":
@@ -148,7 +152,8 @@ func (orb *Orb) Load(orbConfig OrbConfig) {
 				}
 				shard.Log = discord.Log
 				shard.RawLog = discord.RawLog
-				if variant != nil {
+				// Always enable VariantLog if crystal has variants
+				if len(crystal.Variants) > 0 {
 					shard.VariantLog = discord.VariantLog
 				}
 			case "telegram":
@@ -166,7 +171,8 @@ func (orb *Orb) Load(orbConfig OrbConfig) {
 				}
 				shard.Log = telegram.Log
 				shard.RawLog = telegram.RawLog
-				if variant != nil {
+				// Always enable VariantLog if crystal has variants
+				if len(crystal.Variants) > 0 {
 					shard.VariantLog = telegram.VariantLog
 				}
 			default:
@@ -240,16 +246,11 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Sprintf("/%s", name),
 			}
 
-			// Only include variant endpoint if at least one shard has a variant
-			hasVariant := false
-			for _, shard := range crystal.Shards {
-				if shard.Variant != nil {
-					hasVariant = true
-					break
+			// Add variant endpoints by name
+			if len(crystal.Variants) > 0 {
+				for variantName := range crystal.Variants {
+					endpoints = append(endpoints, fmt.Sprintf("/%s/%s", name, variantName))
 				}
-			}
-			if hasVariant {
-				endpoints = append(endpoints, fmt.Sprintf("/%s/variant", name))
 			}
 
 			service := ServiceInfo{

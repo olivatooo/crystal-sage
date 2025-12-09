@@ -16,8 +16,8 @@ type Shard struct {
 	EnvVar     bool
 	RawLog     func(string)
 	Variant    *VariantConfig
-	VariantLog func(string, string, int) // title, description, color
-	AuthKey    string                    // Reference to auth config name
+	VariantLog func(*VariantConfig, string, string, int) // variant, title, description, color
+	AuthKey    string                                    // Reference to auth config name
 }
 
 func (shard *Shard) Load() {

@@ -2,24 +2,50 @@ global:
   debug: true  # Whether to print debug logs in terminal
   port: 8080   # Port to listen on
 
+# Variant configurations - reusable message templates
+# These are referenced by name in the crystals.variants list
+variants:
+  error:
+    title: "ERROR"
+    description: "ERROR DESCRIPTION"
+    color: 15158332  # Red in RGB
+    author: "Master Server"
+    username: "Error Bot"
+    content: ""
+    fields: []
+  
+  warn:
+    title: "WARNING"
+    description: "WARNING DESCRIPTION"
+    color: 15844367  # Yellow in RGB
+    author: "Master Server"
+    username: "Warning Bot"
+    content: ""
+    fields: []
+  
+  info:
+    title: "INFO"
+    description: "INFO DESCRIPTION"
+    color: 3447003  # Blue in RGB
+    author: "Master Server"
+    username: "Info Bot"
+    content: ""
+    fields: []
+
 crystals:
   - name: "testing"
+    # Variants available for this crystal (referenced by name)
+    variants:
+      - "error"
+      - "warn"
+      - "info"
     shards:
       # Discord example
       - alias: "Discord Notifications"
         type: "discord"
         envVar: false
-        webhook: "https://discord.com/api/webhooks/..."
-
-      # Telegram example
-      - alias: "Telegram Alerts"
-        type: "telegram"
-        envVar: false
-        webhook: "https://api.telegram.org/bot<TOKEN>/sendMessage"
-        chatId: "123456789"
-
-      # Slack example
-      - alias: "Slack Logs"
-        type: "slack"
-        envVar: true
-        webhook: "SLACK_WEBHOOK_ENV_VAR"
+        variants:
+          - "error"
+          - "warn"
+          - "info"
+        webhook: "https://discord.com/api/webhooks/XXXXX/YYYYY"

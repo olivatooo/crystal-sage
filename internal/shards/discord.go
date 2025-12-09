@@ -77,17 +77,17 @@ func (discord *Discord) RawLog(content string) {
 	defer res.Body.Close()
 }
 
-func (discord *Discord) VariantLog(title string, description string, color int) {
+func (discord *Discord) VariantLog(variant *VariantConfig, title string, description string, color int) {
 	if discord.URL == "" {
 		return
 	}
-	if discord.Variant == nil {
-		fmt.Printf("[Discord][VariantLog][Error] No variant config for shard: %s\n", discord.Alias)
+	if variant == nil {
+		fmt.Printf("[Discord][VariantLog][Error] No variant config provided for shard: %s\n", discord.Alias)
 		return
 	}
 	fmt.Printf("[Discord][VariantLog][Start] Shard: %s, Title: %s, Description: %s, Color: %d\n", discord.Alias, title, description, color)
 
-	payloadBytes, err := BuildDiscordVariantMessage(discord.Variant, title, description, color)
+	payloadBytes, err := BuildDiscordVariantMessage(variant, title, description, color)
 	if err != nil {
 		fmt.Printf("[Discord][VariantLog][Error] Error building message: %v\n", err)
 		return

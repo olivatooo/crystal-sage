@@ -57,23 +57,23 @@ func (slack *Slack) RawLog(content string) {
 	defer res.Body.Close()
 }
 
-func (slack *Slack) VariantLog(title string, description string, color int) {
+func (slack *Slack) VariantLog(variant *VariantConfig, title string, description string, color int) {
 	if slack.URL == "" {
 		return
 	}
-	if slack.Variant == nil {
-		fmt.Printf("[Slack][VariantLog][Error] No variant config for shard: %s\n", slack.Alias)
+	if variant == nil {
+		fmt.Printf("[Slack][VariantLog][Error] No variant config provided for shard: %s\n", slack.Alias)
 		return
 	}
 	fmt.Printf("[Slack][VariantLog][Start] Shard: %s, Title: %s, Description: %s, Color: %d\n", slack.Alias, title, description, color)
 
 	// Convert RGB to hex color for Slack
 	colorHex := fmt.Sprintf("#%06x", color)
-	if slack.Variant.Color > 0 {
-		colorHex = fmt.Sprintf("#%06x", slack.Variant.Color)
+	if variant.Color > 0 {
+		colorHex = fmt.Sprintf("#%06x", variant.Color)
 	}
 
-	payloadBytes, err := BuildSlackVariantMessage(slack.Variant, title, description, colorHex)
+	payloadBytes, err := BuildSlackVariantMessage(variant, title, description, colorHex)
 	if err != nil {
 		fmt.Printf("[Slack][VariantLog][Error] Error building message: %v\n", err)
 		return
