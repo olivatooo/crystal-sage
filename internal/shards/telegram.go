@@ -89,3 +89,57 @@ func (telegram *Telegram) RawLog(content string) {
 	}
 	defer res.Body.Close()
 }
+
+func (telegram *Telegram) VariantLog(title string, description string, color int) {
+	if telegram.URL == "" {
+		return
+	}
+	if telegram.ChatID == "" {
+		return
+	}
+	if telegram.Variant == nil {
+		if telegram.Debug {
+			fmt.Printf("[Telegram][VariantLog] No variant config for shard: %s\n", telegram.Alias)
+		}
+		return
+	}
+	if telegram.Debug {
+		fmt.Println("[Telegram][VariantLog]", "[", telegram.Alias, "]", title, description)
+	}
+
+	payloadBytes, err := BuildTelegramVariantMessage(telegram.Variant, title, description)
+	if err != nil {
+		if telegram.Debug {
+			fmt.Printf("[Telegram][VariantLog] Error building message: %v\n", err)
+		}
+		return
+	}
+
+	// Parse the JSON to add chat_id
+	var payloadData map[string]interface{}
+	if err := json.Unmarshal(payloadBytes, &payloadData); err != nil {
+		return
+	}
+	payloadData["chat_id"] = telegram.ChatID
+
+	finalPayload, err := json.Marshal(payloadData)
+	if err != nil {
+		return
+	}
+
+	method := "POST"
+	client := &http.Client{}
+	req, err := http.NewRequest(method, telegram.URL, bytes.NewBuffer(finalPayload))
+	if err != nil {
+		return
+	}
+	req.Header.Add("Content-Type", "application/json")
+	res, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	if telegram.Debug {
+		fmt.Println("[Telegram][VariantLog]", "[", telegram.Alias, "]", res.Status)
+	}
+	defer res.Body.Close()
+}

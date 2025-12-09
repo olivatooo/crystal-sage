@@ -7,13 +7,16 @@ import (
 )
 
 type Shard struct {
-	URL    string
-	Name   string
-	Alias  string
-	Debug  bool
-	Log    func(string, uint8)
-	EnvVar bool
-	RawLog func(string)
+	URL        string
+	Name       string
+	Alias      string
+	Debug      bool
+	Log        func(string, uint8)
+	EnvVar     bool
+	RawLog     func(string)
+	Variant    *VariantConfig
+	VariantLog func(string, string, int) // title, description, color
+	AuthKey    string                    // Reference to auth config name
 }
 
 func (shard *Shard) Load() {

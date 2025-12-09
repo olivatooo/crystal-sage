@@ -74,3 +74,42 @@ func (discord *Discord) RawLog(content string) {
 	}
 	defer res.Body.Close()
 }
+
+func (discord *Discord) VariantLog(title string, description string, color int) {
+	if discord.URL == "" {
+		return
+	}
+	if discord.Variant == nil {
+		if discord.Debug {
+			fmt.Printf("[Discord][VariantLog] No variant config for shard: %s\n", discord.Alias)
+		}
+		return
+	}
+	if discord.Debug {
+		fmt.Println("[Discord][VariantLog]", "[", discord.Alias, "]", title, description)
+	}
+
+	payloadBytes, err := BuildDiscordVariantMessage(discord.Variant, title, description, color)
+	if err != nil {
+		if discord.Debug {
+			fmt.Printf("[Discord][VariantLog] Error building message: %v\n", err)
+		}
+		return
+	}
+
+	method := "POST"
+	client := &http.Client{}
+	req, err := http.NewRequest(method, discord.URL, strings.NewReader(string(payloadBytes)))
+	if err != nil {
+		return
+	}
+	req.Header.Add("Content-Type", "application/json")
+	res, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	if discord.Debug {
+		fmt.Println("[Discord][VariantLog]", "[", discord.Alias, "]", res.Status)
+	}
+	defer res.Body.Close()
+}
