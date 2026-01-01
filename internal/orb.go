@@ -198,17 +198,13 @@ func (orb *Orb) Register(mux *http.ServeMux) {
 
 // RootHandler handles requests to the root path
 func RootHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("[RootHandler][Start] Processing request: Method=%s, Path=%s\n", r.Method, r.URL.Path)
-
 	if r.Method == http.MethodHead {
 		// Health check - just return 200
-		fmt.Printf("[RootHandler] Health check request, returning 200 OK\n")
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
 	if r.Method == http.MethodGet {
-		fmt.Printf("[RootHandler] GET request, building services list\n")
 		// Return all available log services
 		services := make([]ServiceInfo, 0, len(GlobalOrb.Crystals))
 		for name, crystal := range GlobalOrb.Crystals {
@@ -268,16 +264,13 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 			Count:    len(services),
 		}
 
-		fmt.Printf("[RootHandler] Returning %d services\n", len(services))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(response)
-		fmt.Printf("[RootHandler][Complete] Services list returned successfully\n")
 		return
 	}
 
 	// Method not allowed
-	fmt.Printf("[RootHandler][Error] Method not allowed: %s\n", r.Method)
 	w.WriteHeader(http.StatusMethodNotAllowed)
 }
 
